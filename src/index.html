@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+    <title>SECoP web client</title>
+    <link rel="shortcut icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABhGlDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw0AcxV9btSIVBzuU4pChCoJdVMSxVqEIFUKt0KqDyaVf0KQhSXFxFFwLDn4sVh1cnHV1cBUEwQ8QVxcnRRcp8X9JoUWMB8f9eHfvcfcO8DerTDV7EoCqWUYmlRRy+VUh+IoAIujDOKISM/U5UUzDc3zdw8fXuzjP8j735xhUCiYDfAJxgumGRbxBPLNp6Zz3icOsLCnE58QTBl2Q+JHrsstvnEsO+3lm2Mhm5onDxEKpi+UuZmVDJZ4mjimqRvn+nMsK5y3OarXO2vfkLwwVtJVlrtMcQQqLWIIIATLqqKAKC3FaNVJMZGg/6eGPOn6RXDK5KmDkWEANKiTHD/4Hv7s1i1OTblIoCfS+2PbHKBDcBVoN2/4+tu3WCRB4Bq60jr/WBGY/SW90tNgRMLQNXFx3NHkPuNwBIk+6ZEiOFKDpLxaB9zP6pjwwfAsMrLm9tfdx+gBkqav0DXBwCIyVKHvd49393b39e6bd3w+VCnK033FdSAAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAABcRgAAXEYBFJRDQQAAAAd0SU1FB+cDGAYtADE/omcAAAIcSURBVFjD7ZfPahRBEMZ/PYmgxEjvRAVRMp1MbnrypBHFg4I3BQ85CAq+gKC+gAfBF/AiIgiKIEKCEELEowFFRRRE0UycBi+ukpkxh13WuO0hK0Loke35gwipw8BMddX3TdVXUA0b9o9NVJEkDNRmoAFsBYZAbAFMH6GrogToMHAOmAL2AdsAzzHNdVEQ/CBwBxgvUbgmsHewIPg8MFyyc1ciHX9zKlk4qiRwrwLwV2Bu4twzwQUgKAneBS5HWnecpmAiGPMM5mNO3xeAG8CiMbSFRzd3CgyrkY7f/n510IDZlfP3c8DJSMc/ipSj7xYY2Jlz/nZRcFcNrOSUdUcZQbgQ+Ax8t3y/FAZqT+0EIh23gVmLSwFPwkAdLkJgwOWwL+UH4LxFvBI440vZGpGNp8tZWg+BJEubvpQZcMIywgPAcaCdZOlCLQQARhr+czBfgGOWSgjgiC/ldJKlX2shsJwmJFn6wpfyMXAU8C0520mWPqp6CtaL8hlwCFi0uCfrGEMbiSZw1+LaHgaBVzuBCaU8YL/F1cIT/WxEf0QUjo4JgznwN12Itcem3vaz2xhO9ZS/3t5Hn2I3AghzWsD9ivbEB04aCAM1BFyrCPy1gRlXEV4EwgrAE+Dsko47fe84YaAU8KaCNSsCpiIdv3QJGgSuru3ydB3iDNABUuAd8NDArSUdrzhfTMaVarj2vjdgHaAV6fjnxv3uv7Zfe6uaKHhLWyAAAAAASUVORK5CYII=">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <style type="text/css">
+     table.accessibles td { border: 0; padding-left: 0 !important; min-width: 7em; }
+     div.notif-cont { display: none; position: absolute; top: 2em; z-index: 100;
+         width: 100%; max-width: 100% !important; }
+     div.notif-cont div.notification { display: inline-block; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+    <script src="https://use.fontawesome.com/releases/v6.4.0/js/all.js"></script>
+    <script type="text/javascript">
+     const msg_rx = /^([a-z_]+)(?: ([\w.]+)(?::(\w+))?(?: (.*))?)?/;
+
+     var ws = null;
+     var ws2 = null;
+     var ws2_initmsg = null;
+     var dtable = null;
+     var description = null;
+     var plots = [];
+     var enums = {};
+
+     function do_connect() {
+       let host = $('#connect-host')[0].value;
+       let port = $('#connect-port')[0].value;
+       ws = null;
+       ws2 = null;
+       dtable = null;
+       description = null;
+       plots = [];
+       enums = {};
+       $('#connect').slideUp();
+       $('#disconnect').show();
+       $('#node-address').text('?');
+       $('#node-id').text('?');
+       $('#full-desc').text('');
+       $('#main').show();
+       $('#error').hide();
+       $('#console').val('');
+       $('#console-activator').show();
+       $('#console-block').hide();
+       let addr = `ws://${host}:${port}`;
+       ws = new WebSocket(addr);
+       ws.addEventListener('open', on_connect);
+       ws.addEventListener('close', on_disconnect);
+       ws.addEventListener('message', on_message);
+       $('#node-address').text(addr);
+     }
+
+     function do_disconnect() {
+       $('#main').hide();
+       ws.close(3124);  // special code signals that we requested the closure
+     }
+
+     function on_connect(event) {
+       ws.send('*IDN?');
+     }
+
+     function on_disconnect(event) {
+       if (event.code != 3124) {
+         msg = {
+           1000: 'normal closure',
+           1001: 'going away',
+           1002: 'protocol error',
+           1003: 'unsupported data',
+           1004: '(reserved)',
+           1005: 'no status',
+           1006: 'connection failed or broken',
+           1007: 'invalid payload',
+           1008: 'policy violation',
+           1009: 'message too big',
+           1010: 'extension required',
+           1011: 'internal server error',
+           1012: 'service restart',
+           1013: 'try again later',
+           1014: 'bad gateway',
+           1015: 'TLS handshake',
+         }[event.code] || 'unknown';
+         show_error(`disconnected (${msg})`);
+       }
+       $('#main').hide();
+       $('#connect').slideDown();
+       $('#disconnect').hide();
+       if (dtable) {
+         dtable.destroy();
+         $('#tablebody tr').remove();
+       }
+       if (plots) {
+         let plot_el = $('#plot')[0];
+         Plotly.purge(plot_el);
+       }
+     }
+
+     function on_message(event) {
+       let msg = event.data;
+       if (msg.startsWith('ISSE')) {
+         ws.send('describe');
+         return;
+       }
+       let parts = msg_rx.exec(msg);
+       if (parts === null) return;
+       if (parts[1].startsWith('error_')) {
+         let [typ, args, _] = JSON.parse(parts[4]);
+         show_error(typ + ': ' + args);
+         return;
+       }
+       switch (parts[1]) {
+         case 'describing':
+           description = JSON.parse(parts[4]);
+           handle_desc(description);
+           ws.send('activate');
+           break;
+         case 'update':
+           let data = JSON.parse(parts[4]);
+           update_param(parts[2], parts[3], data[0], data[1]['t']);
+           break;
+         case 'done':
+           let result = JSON.parse(parts[4]);
+           if (result[0] !== null) {
+             $('#resultmsg').text(result[0]);
+             $('#result').show();
+           }
+           break;
+         case 'active':
+         case 'changed':
+           break;
+         default:
+           console.log(parts);
+           console.error('unhandled: ' + msg);
+       }
+     }
+
+     function show_error(err) {
+       $('#errormsg').text(err);
+       $('#error').show();
+     }
+
+     function handle_desc(desc) {
+       document.title = desc.description.split('\n')[0];
+       $('#full-desc').html(desc.description.replaceAll('\n', '<br>'));
+       $('#node-id').text(desc.equipment_id);
+       for (const mod in desc.modules) {
+         let moddesc = desc.modules[mod];
+         let accdesc = desc.modules[mod].accessibles;
+         let mainunit = accdesc.value ? (accdesc.value.datainfo.unit || '') : '';
+         let descr = moddesc.description;
+         if ((moddesc.interface_classes || []).length > 0) {
+           descr += '\nInterface: ' + moddesc.interface_classes.join(', ');
+         }
+         if (moddesc.implementation) {
+           descr += '\nImpl: ' + moddesc.implementation;
+         }
+
+         let symbol = 'plug';
+         if (moddesc.interface_classes.includes('Drivable')) {
+           symbol = 'car-side';
+         } else if (moddesc.interface_classes.includes('Readable')) {
+           symbol = 'book';
+         }
+
+         var row = $('<tr>');
+         row.append($('<td>').append(
+           $(`<i class="fas fa-${symbol} fa-fw has-text-grey">`),
+           '&nbsp;&nbsp;',
+           $('<b>').attr('title', moddesc.description).text(mod),
+           $('<span class="is-pulled-right"><i class="fas fa-circle-info has-text-grey"></span>').attr('title', descr),
+         ));
+
+         // handle status
+         let sts = $('<td>').attr('id', mod + '-s');
+         if (accdesc.status !== undefined) {
+           sts.append(
+             $(`<i class="fas fa-check" style="display: none" id="${mod}-simg-idle">`),
+             $(`<i class="fas fa-gears" style="display: none" id="${mod}-simg-busy">`),
+             $(`<i class="fas fa-triangle-exclamation" style="display: none" id="${mod}-simg-err">`),
+             '&nbsp;&nbsp;',
+             $('<span>').attr('id', mod + '-sval')
+           );
+         }
+         row.append(sts);
+
+         // handle current value for Readables
+         let val = $('<td>');
+         if (accdesc.value !== undefined) {
+           val.append(
+             $('<span>').attr('id', mod + '-v'),
+             '&nbsp;&nbsp;',
+             $('<span class="has-text-grey">').text(mainunit),
+             $('<a class="is-pulled-right"><i class="fas fa-chart-line"></a>').on('click', () => {
+               add_plot(mod);
+             }),
+           );
+         }
+         row.append(val);
+
+         // handle target for Drivables
+         let tgt = $('<td>');
+         if (accdesc.target !== undefined) {
+           tgt.append(
+             $('<span>').attr('id', mod + '-t'),
+             '&nbsp;&nbsp;',
+             $('<span class="has-text-grey">').text(
+               (accdesc.target.datainfo.unit || '').replace('$', mainunit)),
+           );
+         }
+         row.append(tgt);
+         // add input field and "go" button for the new value
+         let move = $('<td>');
+         if (accdesc.target !== undefined) {
+           move.append(
+             $(`<input type=text size=15 id="${mod}-tset">`).on('keypress', (ev) => {
+               if (ev.key == 'Enter') {
+                 $(`#${mod}-tset-btn`).click();
+               }
+             }),
+             '&nbsp;',
+             $(`<a id="${mod}-tset-btn"><i class="fas fa-circle-play ` +
+               'has-text-success-dark"></a>').on('click', () => {
+                 make_change('change', mod, 'target', $(`#${mod}-tset`)[0].value)
+               }),
+           );
+         }
+         // add the stop button here
+         if (accdesc.stop !== undefined) {
+           move.append(
+             '&nbsp;&nbsp;',
+             $('<a><i class="fas fa-circle-stop has-text-danger"></a>')
+               .on('click', () => { ws.send(`do ${mod}:stop`); }),
+           );
+         }
+         row.append(move);
+
+         // handle accessibles
+         let accs = $('<td>');
+         let num_accs = 0;
+         let acc_table = $(`<table class="accessibles" id="${mod}-acc-tbl" style="display: none">`);
+         for (const acc in accdesc) {
+           let full = mod + '-' + acc;
+           if (accdesc[acc].datainfo.type == 'enum') {
+             enums[full] = [accdesc[acc].datainfo.members, {}];
+             for (const [name, val] of Object.entries(accdesc[acc].datainfo.members)) {
+               enums[full][1][val] = name;
+             }
+           }
+
+           if (acc == 'value' || acc == 'status' || acc == 'target' || acc == 'stop') {
+             continue;
+           }
+           num_accs += 1;
+           let dispname = acc.startsWith('_') ? acc.substr(1) : acc;
+
+           // for commands, show a button and an input field for the argument
+           if (accdesc[acc].datainfo.type == 'command') {
+             acc_table.append($('<tr>').append(
+               $('<td>').append(
+                 $(`<button id="${full}-do-btn">${dispname}</button>`).on('click', () => {
+                   let field = $(`#${full}-do-arg`);
+                   let arg = field.length ? field[0].value : '';
+                   make_change('do', mod, acc, arg);
+                 }),
+               ),
+               $('<td>'),
+               accdesc[acc].datainfo.argument ?
+               $('<td>').append(
+                 $(`<input type=text size=20 id="${full}-do-arg">`).on('keypress', (ev) => {
+                   if (ev.key == 'Enter') {
+                     $(`#${full}-do-btn`).click();
+                   }
+                 })
+               )
+               : $('<td>')
+             ));
+             continue;
+           }
+
+           // for parameters, show the name, current value, and an input field to set it
+           acc_table.append($('<tr>').append(
+             $('<td>').text(dispname),
+             $('<td>').append(
+               $('<span>').attr('id', full + '-v'),
+               '&nbsp;&nbsp;',
+               $('<span class="has-text-grey">').text(
+                 (accdesc[acc].datainfo.unit || '').replace('$', mainunit))
+             ),
+             accdesc[acc].readonly ? $('<td>') :
+             $('<td>').append(
+               $(`<input type=text size=20 id="${full}-vset">`).on('keypress', (ev) => {
+                 if (ev.key == 'Enter') {
+                   $(`#${full}-vset-btn`).click();
+                 }
+               }),
+               '&nbsp;',
+               $(`<a id="${full}-vset-btn"><i class="fas fa-circle-right ` +
+                 'has-text-success-dark"></a>').on('click', () => {
+                   make_change('change', mod, acc, $(`#${full}-vset`)[0].value);
+                 }),
+             )
+           ));
+         }
+         if (num_accs > 2) {
+           accs.append(
+             $(`<a id="${mod}-show-btn">Show&nbsp;&nbsp;<i class="fas fa-chevron-down ` +
+               'has-text-link-dark"></a>').on('click', () => {
+                 $(`#${mod}-hide-btn`).show();
+                 $(`#${mod}-show-btn`).hide();
+                 $(`#${mod}-acc-tbl`).show();
+               }),
+             $(`<a id="${mod}-hide-btn" style="display: none">Hide&nbsp;&nbsp;<i class="fas fa-chevron-up ` +
+               'has-text-link-dark"></a>').on('click', () => {
+                 $(`#${mod}-hide-btn`).hide();
+                 $(`#${mod}-show-btn`).show();
+                 $(`#${mod}-acc-tbl`).hide();
+               }),
+             acc_table
+           );
+         } else if (num_accs > 0) {
+           accs.append(acc_table.attr('style', ''));
+         }
+         row.append(accs);
+
+         $('#tablebody').append(row);
+       }
+
+       dtable = $('#table').DataTable({
+         'pageLength': 25,
+         'order': [[0, 'asc']],
+         'autoWidth': false,
+         'columns': [
+           {'width': '15%'},
+           {'width': '13%'},
+           {'width': '15%'},
+           {'width': '10%'},
+           {'width': '10%'},
+           {'width': '33%'},
+         ]
+       });
+     }
+
+     function make_change(verb, mod, acc, val) {
+       try {
+         val = JSON.parse(val);
+       } catch (err) {
+         show_error('Please enter valid JSON');
+         return;
+       }
+       ws.send(`${verb} ${mod}:${acc} ${JSON.stringify(val)}`);
+     }
+
+     function add_plot(mod) {
+       let plot_el = $('#plot')[0];
+       if (plots.length == 0) {
+         // initialize plot div
+         Plotly.newPlot(plot_el, [], {
+           margin: {t: 0},
+           xaxis: {title: 'Time', zeroline: false},
+           yaxis: {title: 'Value'},
+           showlegend: true,
+         });
+       }
+       if (!plots.includes(mod)) {
+         Plotly.addTraces(plot_el, {x: [], y: [], name: mod});
+         plots.push(mod);
+       }
+     }
+
+     function update_param(mod, par, val, t) {
+       // handle enum conversion
+       let full = mod + '-' + par;
+       if (Object.hasOwn(enums, full)) {
+         let name = enums[full][1][val];
+         if (name !== undefined) val = name;
+       }
+
+       switch (par) {
+         case 'value':
+           if (plots.includes(mod)) {
+             let plot_el = $('#plot')[0];
+             let date = new Date(1000 * t);
+             let n = plots.indexOf(mod);
+             Plotly.extendTraces(plot_el, {x: [[date]], y: [[val]]}, [n], 1000);
+           }
+
+           if (typeof val === 'number') {
+             val = val.toLocaleString();
+           }
+           $(`#${mod}-v`).text(val);
+           break;
+
+         case 'target':
+           $(`#${mod}-t`).text(val);
+           break;
+
+         case 'status':
+           let [cst, text] = val;
+           let color = 'is-danger';
+           let image = 'err';
+           if (100 <= cst && cst < 200) {
+             color = 'is-success';
+             image = 'idle';
+           } else if (200 <= cst && cst < 400) {
+             color = 'is-warning';
+             image = 'busy';
+           }
+           $(`#${mod}-sval`).text(text);
+           $(`#${mod}-simg-idle`).hide();
+           $(`#${mod}-simg-busy`).hide();
+           $(`#${mod}-simg-err`).hide();
+           $(`#${mod}-simg-${image}`).show();
+           $(`#${mod}-s`).attr('class', color);
+           break;
+
+         default:
+           if (typeof val === 'number') {
+             val = val.toLocaleString();
+           }
+           $(`#${full}-v`).text(val);
+       }
+     }
+
+     function show_console() {
+       $('#console-activator').hide();
+       $('#console-block').show();
+       $('#console-input').focus();
+     }
+
+     function console_send() {
+       let msg = $('#console-input')[0].value;
+       if (!ws2) {
+         ws2 = new WebSocket(ws.url);
+         ws2_initmsg = msg;
+         ws2.addEventListener('open', on_console_init);
+         ws2.addEventListener('message', on_console_message);
+       } else {
+         ws2.send(msg);
+       }
+       add_console_out('> ' + msg);
+       $('#console-input')[0].value = '';
+     }
+
+     function on_console_init() {
+       ws2.send(ws2_initmsg);
+     }
+
+     function on_console_message(event) {
+       add_console_out('< ' + event.data);
+     }
+
+     function add_console_out(text) {
+        let console = $('#console')[0];
+        console.value = console.value + text + '\n';
+        console.scrollTop = console.scrollHeight;
+     }
+
+     $(document).ready(() => {
+       $('#connect-host')[0].value = document.location.hostname;
+       $('#connect-port')[0].value = document.location.port;
+     });
+
+    </script>
+  </head>
+  <body>
+    <nav class="navbar has-shadow has-background-primary-light" role="navigation">
+      <div class="container">
+        <div class="navbar-brand">
+          <span class="navbar-item">
+            <img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjwhLS0gQ3JlYXRlZCB3aXRoIElua3NjYXBlIChodHRwOi8vd3d3Lmlua3NjYXBlLm9yZy8pIC0tPgoKPHN2ZwogICB2ZXJzaW9uPSIxLjEiCiAgIGlkPSJzdmcyIgogICB3aWR0aD0iNjIxLjMzMzMxIgogICBoZWlnaHQ9IjE3MiIKICAgdmlld0JveD0iMCAwIDYyMS4zMzMzMSAxNzIiCiAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGRlZnMKICAgICBpZD0iZGVmczYiIC8+CiAgPGcKICAgICBpZD0iZzgiCiAgICAgdHJhbnNmb3JtPSJtYXRyaXgoMS4zMzMzMzMzLDAsMCwtMS4zMzMzMzMzLDAsMTcyKSI+CiAgICA8ZwogICAgICAgaWQ9ImcxMCIKICAgICAgIHRyYW5zZm9ybT0ic2NhbGUoMC4xKSI+CiAgICAgIDxwYXRoCiAgICAgICAgIGlkPSJwYXRoMTIiCiAgICAgICAgIHN0eWxlPSJmaWxsOiMyMzFmMjA7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOmV2ZW5vZGQ7c3Ryb2tlOm5vbmUiCiAgICAgICAgIGQ9Ik0gMzU2NC4xNyA5MTQuMzcwMTQgTCAzNTY0LjE3IDcuMDc1MTk1NSBMIDM3NjguNjkxNSA3LjA3NTE5NTUgTCAzNzY4LjY5MTUgMzE5LjU4NDk3IEwgMzg2Ni4wODkgMzE5LjU4NDk3IEMgMzk3NS43OTg5IDMxOS41ODQ5NyA0MDYzLjI2NiAzNDcuODY2NjIgNDEyOC45MjU5IDQwNC4wMTg1NiBDIDQxOTQuNTc1OCA0NjAuMzkwNTEgNDIyNy40MDczIDUzNC4wNDM3NyA0MjI3LjQwNzMgNjI1LjE4MDY4IEMgNDIyNy40MDczIDgxOC4wNDM0OSA0MTEzLjE1MzIgOTE0LjM3MDE0IDM4ODQuNDQzNSA5MTQuMzcwMTQgTCAzNTY0LjE3IDkxNC4zNzAxNCB6IE0gMzc2OC42OTE1IDc1Ny41NzMyNiBMIDM4NDkuMDIzNSA3NTcuNTczMjYgQyAzOTU3Ljg3MzQgNzU3LjU3MzI2IDQwMTIuMjk1IDcxMC45MTg5OSA0MDEyLjI5NSA2MTcuNjIyMDkgQyA0MDEyLjI5NSA1MjIuMzc2MTggMzk1Ny44NzM0IDQ3NC42Mzg2OCAzODQ5LjAyMzUgNDc0LjYzODY4IEwgMzc2OC42OTE1IDQ3NC42Mzg2OCBMIDM3NjguNjkxNSA3NTcuNTczMjYgeiAiIC8+CiAgICAgIDxwYXRoCiAgICAgICAgIGlkPSJwYXRoMTQiCiAgICAgICAgIHN0eWxlPSJmaWxsOiMyMzFmMjA7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOmV2ZW5vZGQ7c3Ryb2tlOm5vbmUiCiAgICAgICAgIGQ9Ik0gMzA3OS43NjA4IDY4Ni41MjgzNCBDIDI5NzAuNzAwOSA2ODYuNTI4MzQgMjg4My44ODYzIDY1Ni4yOTQxNSAyODE5LjczNjQgNTk1LjgyNTIxIEMgMjc1NS41OTY1IDUzNS4zNTMyNyAyNzIzLjYyOCA0NTEuMzQwNTMgMjcyMy42MjggMzQ0LjIyMzY0IEMgMjcyMy42MjggMjQwLjU1NTc1IDI3NTQuNTA5NCAxNTguMjY5OTEgMjgxNi4yNzk0IDk3Ljc5Mjk3MSBDIDI4NzguMDQ5MyAzNy4zMjQyMzIgMjk2Mi45MzMzIDcuMDg5ODQzOSAzMDcwLjkxMzIgNy4wODk4NDM5IEMgMzE4MC42MjMxIDcuMDg5ODQzOSAzMjY3LjAxMzQgMzguMTkxMDM0IDMzMzAuMDczMyAxMDAuNjA1NDcgQyAzMzkzLjE0MzMgMTYzLjAyMzQxIDM0MjQuNjU4MyAyNDguMTEzMTggMzQyNC42NTgzIDM1NS42NjQwNyBDIDM0MjQuNjU4MyA0NTUuMjIyOTcgMzM5NC4wMDU4IDUzNS4zNTMyNyAzMzMyLjg4NTggNTk1LjgyNTIxIEMgMzI3MS43NjU5IDY1Ni4yOTQxNSAzMTg3LjMyMDcgNjg2LjUyODM0IDMwNzkuNzYwOCA2ODYuNTI4MzQgeiBNIDMwNzYuMDg0MSA1MzMuNDA4MjIgQyAzMTcyLjYyNCA1MzMuNDA4MjIgMzIyMS4wMDExIDQ3Mi45NDMxMSAzMjIxLjAwMTEgMzUxLjc4MjI0IEMgMzIyMS4wMDExIDIyNC4xNDIzNiAzMTczLjA1NzcgMTYwLjIwOTk2IDMwNzcuMzg3OCAxNjAuMjA5OTYgQyAyOTc2Ljk1NzkgMTYwLjIwOTk2IDI5MjYuNjQwNyAyMjIuMzk4ODkgMjkyNi42NDA3IDM0Ni44MDE3NyBDIDI5MjYuNjQwNyA0MDYuMTkxNzEgMjkzOS44MjcxIDQ1Mi4yMDUzOCAyOTY1Ljk1NzEgNDg0LjgxOTM1IEMgMjk5Mi4wODcxIDUxNy4yMTMzMiAzMDI4Ljc4NDEgNTMzLjQwODIyIDMwNzYuMDg0MSA1MzMuNDA4MjIgeiAiIC8+CiAgICAgIDxwYXRoCiAgICAgICAgIGQ9Ik0gMjYxMy45LDUzLjk4MDUgQyAyNTUwLjA3LDIzLjEwNTUgMjQ2Ni40Myw3LjY2Nzk3IDIzNjMuMzgsNy42Njc5NyBjIC0xMzQuMzMsMCAtMjQwLjA5LDM5LjQyNTgzIC0zMTcuMDYsMTE4LjQ4NDAzIC03Ny4xOCw3OS4wNTUgLTExNS41NSwxODQuMzk1IC0xMTUuNTUsMzE2LjAxNiAwLDE0MC4xNzIgNDMuMTgsMjUzLjg1NSAxMjkuNzQsMzQxLjA0NyA4Ni41Nyw4Ny4xOTEgMTk4Ljk5LDEzMC43ODUgMzM3LjA4LDEzMC43ODUgODUuNTIsMCAxNTcuNywtMTAuODQ0IDIxNi4zMSwtMzIuNTM1IFYgNjkxLjQzNCBjIC01OC42MSwzNS4wNDYgLTEyNS4zNiw1Mi41NjIgLTIwMC40NSw1Mi41NjIgLTgyLjE5LDAgLTE0OC43MywtMjUuODYzIC0xOTkuMjEsLTc3LjU5NCAtNTAuNDgsLTUxLjczIC03NS43MiwtMTIxLjgxNiAtNzUuNzIsLTIxMC4yNjEgMCwtODQuNjg4IDIzLjc4LC0xNTIuMjcgNzEuNTUsLTIwMi41MzkgNDcuNTYsLTUwLjI3NCAxMTEuOCwtNzUuNTEyIDE5Mi41MywtNzUuNTEyIDc2Ljk3LDAgMTQ3LjQ3LDE4Ljc3MyAyMTEuMyw1Ni4zMTYgViA1My45ODA1IgogICAgICAgICBzdHlsZT0iZmlsbDojMjMxZjIwO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpldmVub2RkO3N0cm9rZTpub25lIgogICAgICAgICBpZD0icGF0aDIwIiAvPgogICAgICA8cGF0aAogICAgICAgICBkPSJNIDE4MTguMDUsNy4wNzAzMSBIIDEyNzMuODEgViA5MTQuMzYzIGggNTIzLjMgdiAtMTY2LjMgaCAtMzE4Ljc4IHYgLTIwMS45MyBoIDI5Ni43NCBWIDM4MC40OCBIIDE0NzguMzMgViAxNzIuOTM4IGggMzM5LjcyIFYgNy4wNzAzMSIKICAgICAgICAgc3R5bGU9ImZpbGw6IzIzMWYyMDtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6ZXZlbm9kZDtzdHJva2U6bm9uZSIKICAgICAgICAgaWQ9InBhdGgyMiIgLz4KICAgICAgPHBhdGgKICAgICAgICAgZD0ibSA1LjI5Njg4LDExLjMxNjQgYyAyMjYuMzQ4MTIsMCA0NTEuODY3MTIsMC4wMzkxIDY3OC4yMTExMiwwLjAzOTEgMTg0LjU1NSwwIDI2Mi45NDUsMjkuNzkyOSAzNDMuMDQyLDEwNy40Njg1IDUzLjUsNTEuODg3IDExNS4zMywxNDEuMjk3IDExNC43MywyNzQuMzc5IC0xLjQ4LDMyNC42NiAtMjk2LjUzNCwyODguMTM3IC0yOTEuMzU4LDQ3My43NzQgMS4xNjQsNDEuOTk2IDI3LjI1OCw4Mi4xODcgNjQuMTI1LDEwMi42NzUgMzUuMDE5LDE5LjQ1IDcwLjI1NCwyOS4wMTYgMTI3Ljg5MywyOS4xNjQgMjM1LjcxLDAuNTc5IC0wLjc4LDAgMjQ0LjQ5LDAuMzc5IGwgMzIwNy4wOSwtMC4wMTEgMTYxLjc1LDI3OC4zNTYgLTM0OTkuNiwwLjAxIEMgOTk4LjYxMywxMjczLjc0IDgzMS4yNDIsMTI4Ni4xMSA3MDQuNjcyLDExNjkuMzEgNjAzLjMzMiwxMDc1LjggNTY4LjQ3Myw5NjguMzAxIDU2OC4wNjYsODcxLjA4NiA1NjcuNjM3LDc2Ny45OTYgNTk5LjU4Niw2OTguMDYzIDYzNi41OTQsNjQ0Ljc0NiA3MjQuNDgsNTE4LjEwMiA4NjcuNzMsNDkzLjE0OCA4NjYuNTIzLDM5Ny43MTkgODY1LjIyMywyOTUuMjczIDc2Ni44OTgsMjgzLjEyOSA2MDQuNzgxLDI4My45MyA0NTguMDI3LDI4NC42NTIgMzEwLjgyLDI4My40NDEgMTY0LjAyNywyODMuOTY1IEwgNS4yOTY4OCwxMS4zMTY0IgogICAgICAgICBzdHlsZT0iZmlsbDojMjMxZjIwO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpldmVub2RkO3N0cm9rZTpub25lIgogICAgICAgICBpZD0icGF0aDI0IiAvPgogICAgICA8cGF0aAogICAgICAgICBkPSJtIDUuMjk2ODgsMTEuMzE2NCBjIDIyNi4zNDgxMiwwIDQ1MS44NjcxMiwwLjAzOTEgNjc4LjIxMTEyLDAuMDM5MSAxODQuNTU1LDAgMjYyLjk0NSwyOS43OTI5IDM0My4wNDIsMTA3LjQ2ODUgNTMuNSw1MS44ODcgMTE1LjMzLDE0MS4yOTcgMTE0LjczLDI3NC4zNzkgLTEuNDgsMzI0LjY2IC0yOTYuNTM0LDI4OC4xMzcgLTI5MS4zNTgsNDczLjc3NCAxLjE2NCw0MS45OTYgMjcuMjU4LDgyLjE4NyA2NC4xMjUsMTAyLjY3NSAzNS4wMTksMTkuNDUgNzAuMjU0LDI5LjAxNiAxMjcuODkzLDI5LjE2NCAyMzUuNzEsMC41NzkgLTAuNzgsMCAyNDQuNDksMC4zNzkgbCAzMjA3LjA5LC0wLjAxMSAxNjEuNzUsMjc4LjM1NiAtMzQ5OS42LDAuMDEgQyA5OTguNjEzLDEyNzMuNzQgODMxLjI0MiwxMjg2LjExIDcwNC42NzIsMTE2OS4zMSA2MDMuMzMyLDEwNzUuOCA1NjguNDczLDk2OC4zMDEgNTY4LjA2Niw4NzEuMDg2IDU2Ny42MzcsNzY3Ljk5NiA1OTkuNTg2LDY5OC4wNjMgNjM2LjU5NCw2NDQuNzQ2IDcyNC40OCw1MTguMTAyIDg2Ny43Myw0OTMuMTQ4IDg2Ni41MjMsMzk3LjcxOSA4NjUuMjIzLDI5NS4yNzMgNzY2Ljg5OCwyODMuMTI5IDYwNC43ODEsMjgzLjkzIDQ1OC4wMjcsMjg0LjY1MiAzMTAuODIsMjgzLjQ0MSAxNjQuMDI3LDI4My45NjUgWiIKICAgICAgICAgc3R5bGU9ImZpbGw6bm9uZTtzdHJva2U6IzIzMWYyMDtzdHJva2Utd2lkdGg6NC45OTc1O3N0cm9rZS1saW5lY2FwOmJ1dHQ7c3Ryb2tlLWxpbmVqb2luOm1pdGVyO3N0cm9rZS1taXRlcmxpbWl0OjIyLjkyNTY7c3Ryb2tlLWRhc2hhcnJheTpub25lO3N0cm9rZS1vcGFjaXR5OjEiCiAgICAgICAgIGlkPSJwYXRoMjYiIC8+CiAgICA8L2c+CiAgPC9nPgo8L3N2Zz4K" />
+            &nbsp;node&nbsp;<em id="node-id">?</em>&nbsp;at&nbsp;<em id="node-address">?</em>
+          </span>
+        </div>
+
+        <div class="navbar-end">
+          <div class="navbar-item">provided by Frappy</div>
+        </div>
+      </div>
+    </nav>
+
+    <main>
+      <section id="connect" class="section">
+        <div class="columns">
+          <div class="column is-one-quarter"></div>
+          <div class="column has-text-centered">
+          <h2 class="subtitle is-medium">Connect to SECoP node</h2>
+          <div class="field is-horizontal">
+            <div class="field-label is-normal"><label class="label">Host:</label></div>
+            <div class="field-body">
+              <div class="field">
+                <input class="input" type="text" id="connect-host" size="20" value="localhost"
+                       onkeypress="if (event.key == 'Enter') do_connect()">
+              </div>
+            </div>
+          </div>
+          <div class="field is-horizontal">
+            <div class="field-label is-normal"><label class="label">Port:</label></div>
+            <div class="field-body">
+              <div class="field">
+                <input class="input" type="text" id="connect-port" size="10" value="10767"
+                       onkeypress="if (event.key == 'Enter') do_connect()">
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <button class="button is-link" onclick="do_connect()">Connect</button>
+          </div>
+          </div>
+          <div class="column is-one-quarter"></div>
+        </div>
+      </section>
+
+      <section id="main" class="section" style="display: none">
+        <div class="container is-fluid">
+          <p class="block"><span id="full-desc"></span></p>
+          <table class="table is-striped is-narrow is-hoverable is-fullwidth" id="table">
+            <thead>
+              <tr>
+                <th>Module</th>
+                <th>Status</th>
+                <th>Value</th>
+                <th>Target</th>
+                <th>&nbsp;</th>
+                <th>Accessibles</th>
+              </tr>
+            </thead>
+            <tbody id="tablebody">
+            </tbody>
+          </table>
+        </div>
+        <div class="container" id="plot">
+        </div>
+        <div id="console-activator" class="block has-text-centered">
+          <a onclick="show_console()">Show console</a>
+        </div>
+        <div id="console-block" class="block has-text-centered" style="display: none">
+          <textarea id="console" cols="100" rows="20"></textarea>
+          <br>
+          <input id="console-input" type="text" size="100"
+                 onkeypress="if (event.key == 'Enter') console_send()">
+          <button onclick="console_send()">Send</button>
+        </div>
+      </section>
+
+      <section id="disconnect" style="display: none">
+        <div class="container has-text-centered">
+          <div class="field">
+            <button class="button is-warning" onclick="do_disconnect()">Disconnect</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="container has-text-centered notif-cont" id="error">
+      <div class="notification is-danger">
+        <button class="delete" onclick="$('#error').hide()"></button>
+        Error: <span id="errormsg"></span>
+      </div>
+    </div>
+    <div class="container has-text-centered notif-cont" id="result">
+      <div class="notification is-success">
+        <button class="delete" onclick="$('#result').hide()"></button>
+        Result: <span id="resultmsg"></span>
+      </div>
+    </div>
+  </body>
+</html>

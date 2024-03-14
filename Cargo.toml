@@ -1,0 +1,15 @@
+[package]
+name = "usecop"
+version = "0.1.0"
+edition = "2021"
+authors = ["Georg Brandl <g.brandl@fz-juelich.de>"]
+description = "Rust no_std implementation of the Sample Environment Control Protocol"
+keywords = ["scada", "secop", "hardware", "sample-environment", "embedded"]
+license = "MIT OR Apache-2.0"
+rust-version = "1.63"
+
+[dependencies]
+base64 = { version = "0.21.5", default-features = false }
+core2 = { version = "0.4.0", default-features = false }
+dtoa = "1.0.9"
+sha1 = { version = "0.10.6", default-features = false }

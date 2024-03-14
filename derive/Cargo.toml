@@ -1,0 +1,18 @@
+[package]
+name = "usecop-derive"
+version = "0.1.0"
+authors = ["Georg Brandl <g.brandl@fz-juelich.de>"]
+edition = "2021"
+description = "Rust no_std implementation of the Sample Environment Control Protocol"
+keywords = ["scada", "secop", "hardware", "sample-environment", "embedded"]
+license = "GPL-2.0+"
+rust-version = "1.63"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0.69"
+syn = "2.0.39"
+quote = "1.0.33"
+darling = "0.20.3"
