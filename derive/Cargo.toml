@@ -1,11 +1,11 @@
 [package]
 name = "usecop-derive"
 version = "0.1.0"
-authors = ["Georg Brandl <g.brandl@fz-juelich.de>"]
 edition = "2021"
+authors = ["Georg Brandl <g.brandl@fz-juelich.de>"]
 description = "Rust no_std implementation of the Sample Environment Control Protocol"
 keywords = ["scada", "secop", "hardware", "sample-environment", "embedded"]
-license = "GPL-2.0+"
+license = "MIT OR Apache-2.0"
 rust-version = "1.63"
 
 [lib]
