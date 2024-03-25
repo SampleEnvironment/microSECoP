@@ -1,9 +1,11 @@
-# microSECoP
+# µSECoP
 
-A minimal SECoP implementation in Rust, intended to be used on microcontollers.
+A minimal SECoP implementation in Rust, intended to be used on `no_std` systems
+like microcontollers.
 
 At an early stage in development.
 
-Example projects:
+## Example projects
 
-* https://github.com/birkenfeld/microSECoP-rp2040-w5500
+Several examples have been implemented for different chips, they can be found in
+the `examples` subdirectory.
