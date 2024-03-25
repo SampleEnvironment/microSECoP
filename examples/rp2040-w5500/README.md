@@ -4,12 +4,12 @@
 
 * Connect a W5500 extension board to the RPi Pico. Pinout:
 
-  SCLK - pin 10
-  MOSI - pin 11
-  MISO - pin 12
-  CS   - pin 13
-  INT  - pin 14
-  RST  - pin 15
+  - SCLK - pin 10
+  - MOSI - pin 11
+  - MISO - pin 12
+  - CS   - pin 13
+  - INT  - pin 14
+  - RST  - pin 15
 
 * Connect the RPi Pico to power (e.g. microUSB) and debug probe (3-pin cable)
 
