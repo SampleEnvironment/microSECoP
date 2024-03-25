@@ -16,13 +16,12 @@ use stm32f4xx_hal::{
 use systick_monotonic::Systick;
 
 use smoltcp::time::Instant;
-use smoltcp::wire::{EthernetAddress, IpCidr, IpAddress};
+use smoltcp::wire::{EthernetAddress, IpCidr, IpAddress, IpEndpoint};
 use smoltcp::iface::{SocketSet, SocketHandle, Config, Interface, SocketStorage};
 use smoltcp::socket::tcp::{Socket as TcpSocket, SocketBuffer as TcpSocketBuffer, State as TcpState};
 use smoltcp::socket::udp::{Socket as UdpSocket, PacketBuffer as UdpPacketBuffer};
 use smoltcp::socket::dhcpv4::{Socket as DhcpSocket, Event as DhcpEvent};
 use smoltcp::storage::PacketMetadata;
-use smoltcp::wire::DhcpRepr;
 
 use stm32_eth::{dma::{EthernetDMA, RxRingEntry, TxRingEntry}, Parts, PartsIn, EthPins};
 
@@ -30,12 +29,13 @@ const TIME_GRANULARITY: u32 = 1000;  // 1000 Hz granularity
 const PORT: u16 = 10767;
 const MAX_CLIENTS: usize = 5;
 
-// const NTP_PORT: u16 = 123;
-// // Simple packet requesting current timestamp
-// const NTP_REQUEST: &[u8] = b"\xE3\x00\x06\xEC\x00\x00\x00\x00\x00\x00\x00\x00\
-//                              \x31\x4E\x31\x34\x00\x00\x00\x00\x00\x00\x00\x00\
-//                              \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
-//                              \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+const NTP_OPTION: u8 = 42;
+const NTP_PORT: u16 = 123;
+// Simple packet requesting current timestamp
+const NTP_REQUEST: &[u8] = b"\xE3\x00\x06\xEC\x00\x00\x00\x00\x00\x00\x00\x00\
+                             \x31\x4E\x31\x34\x00\x00\x00\x00\x00\x00\x00\x00\
+                             \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+                             \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 
 #[rtic::app(
     device = crate::hal::pac,
@@ -109,7 +109,7 @@ mod app {
             pins,
             mdio,
             mdc,
-        ).unwrap();
+        ).expect("eth setup");
 
         // determine MAC address from board's serial number
         let serial = read_serno();
@@ -161,35 +161,29 @@ mod app {
         while monotonics::now().ticks() < 2000 { }
 
         info!("Starting DHCP");
-
-        let mut storage = [SocketStorage::EMPTY; 2];
-        let mut sockets = SocketSet::new(&mut storage[..]);
-
-        let dhcp_socket = DhcpSocket::new();
-        let dhcp_handle = sockets.add(dhcp_socket);
-
-        let mut rx_buf = [0; 1500];
-        let mut tx_buf = [0; 1500];
-        let mut rx_meta_buf = [PacketMetadata::EMPTY; 1];
-        let mut tx_meta_buf = [PacketMetadata::EMPTY; 1];
-        let ntp_socket = UdpSocket::new(
-            UdpPacketBuffer::new(&mut rx_meta_buf[..], &mut rx_buf[..]),
-            UdpPacketBuffer::new(&mut tx_meta_buf[..], &mut tx_buf[..])
-        );
-        let _ntp_handle = sockets.add(ntp_socket);
+        let mut buf = [0; 1500];
 
         cx.shared.net.lock(|net| {
-            // use a dedicated socket storage here, we don't need them later
-            // let mut ntp_addr = None;
+            // use dedicated socket storages here, we don't need them later
+            let mut storage = [SocketStorage::EMPTY; 1];
+            let mut sockets = SocketSet::new(&mut storage[..]);
+            let mut ntp_addr = None;
+            let ip_addr;
+
+            let mut dhcp_socket = DhcpSocket::new();
+            // request NTP address and provide a buffer for us to receive it
+            dhcp_socket.set_parameter_request_list(&[1, 3, 6, NTP_OPTION]);
+            dhcp_socket.set_receive_packet_buffer(&mut buf[..]);
+            let dhcp_handle = sockets.add(dhcp_socket);
 
             loop {
                 let time = Instant::from_millis(monotonics::now().ticks() as i64);
                 net.iface.poll(time, &mut &mut net.dma, &mut sockets);
 
-                let event = net.sockets.get_mut::<DhcpSocket>(dhcp_handle).poll();
+                let event = sockets.get_mut::<DhcpSocket>(dhcp_handle).poll();
                 if let Some(DhcpEvent::Configured(config)) = event {
-                    let addr = config.address;
-                    net.iface.update_ip_addrs(|addrs| addrs.push(addr.into()).unwrap());
+                    ip_addr = config.address;
+                    net.iface.update_ip_addrs(|addrs| addrs.push(ip_addr.into()).unwrap());
 
                     if let Some(router) = config.router {
                         net.iface.routes_mut().add_default_ipv4_route(router).unwrap();
@@ -197,16 +191,59 @@ mod app {
                         net.iface.routes_mut().remove_default_ipv4_route();
                     }
 
-                    if let Ok(repr) = DhcpRepr::parse(&config.packet.unwrap()) {
-                        for opt in repr.additional_options {
-                            if opt.kind == 42 {
-                                info!("NTP: {:?}", opt.data);
-                                // ntp_addr = Some(IpAddress::from_bytes(&opt.data));
-                                break;
-                            }
+                    for opt in config.packet.expect("has a buffer").options() {
+                        if opt.kind == NTP_OPTION && opt.data.len() == 4 {
+                            ntp_addr = Some(IpAddress::v4(opt.data[0],
+                                                          opt.data[1],
+                                                          opt.data[2],
+                                                          opt.data[3]));
+                            break;
                         }
                     }
                     break;
+                }
+            }
+
+            if let Some(addr) = ntp_addr {
+                let start_time = monotonics::now().ticks();
+                let mut storage = [SocketStorage::EMPTY; 1];
+                let mut sockets = SocketSet::new(&mut storage[..]);
+
+                let mut rx_buf = [0; 1500];
+                let mut tx_buf = [0; 1500];
+                let mut rx_meta_buf = [PacketMetadata::EMPTY; 1];
+                let mut tx_meta_buf = [PacketMetadata::EMPTY; 1];
+                let ntp_handle = sockets.add(UdpSocket::new(
+                    UdpPacketBuffer::new(&mut rx_meta_buf[..], &mut rx_buf[..]),
+                    UdpPacketBuffer::new(&mut tx_meta_buf[..], &mut tx_buf[..])
+                ));
+
+                sockets.get_mut::<UdpSocket>(ntp_handle).bind((ip_addr.address(), NTP_PORT))
+                                                        .expect("bind udp");
+
+                let endpoint = IpEndpoint::from((addr, NTP_PORT));
+                info!("NTP: sending request to {}", endpoint);
+                match sockets.get_mut::<UdpSocket>(ntp_handle).send_slice(NTP_REQUEST, endpoint) {
+                    Ok(_) => loop {
+                        let time = monotonics::now().ticks();
+                        if time - start_time > 5000 {
+                            // timeout NTP request
+                            break;
+                        }
+
+                        net.iface.poll(Instant::from_millis(time as i64),
+                                   &mut &mut net.dma, &mut sockets);
+
+                        if let Ok((_, _)) = sockets.get_mut::<UdpSocket>(ntp_handle).recv_slice(&mut buf) {
+                            let now = time as f64 / TIME_GRANULARITY as f64;
+                            let stamp = u32::from_be_bytes([buf[40], buf[41], buf[42], buf[43]]);
+                            // conversion to Unix time, differs by seventy years
+                            let stamp = stamp - 2208988800;
+                            info!("NTP: got timestamp {}", stamp);
+                            net.ntp_time = Some(stamp as f64 - now);
+                        }
+                    }
+                    Err(e) => warn!("could not send NTP request: {}", e)
                 }
             }
         });
@@ -218,14 +255,14 @@ mod app {
         let start::SharedResources { mut net, handles, use_dhcp } = cx.shared;
 
         net.lock(|net| {
-            let ip_addr = net.iface.ipv4_addr().unwrap();
+            let ip_addr = net.iface.ipv4_addr().expect("iface has an ip");
             info!("IP setup done ({}), binding to {}:{}",
                   if *use_dhcp { "dhcp" } else { "static" }, ip_addr, PORT);
 
             for &handle in handles {
                 let socket = net.sockets.get_mut::<TcpSocket>(handle);
                 socket.set_nagle_enabled(false);
-                socket.listen(PORT).unwrap();
+                socket.listen(PORT).expect("can listen");
             }
 
             net.dma.enable_interrupt();
@@ -277,7 +314,6 @@ mod app {
                             time, &mut buf[..recv_bytes],
                             i as usecop::ClientId,
                             |sn, callback: &dyn Fn(&mut dyn usecop::io::Write)| {
-                                info!("writeback on socket {}", sn);
                                 let socket = net.sockets.get_mut::<TcpSocket>(handles[sn]);
                                 callback(&mut Writer(socket));
                             }
@@ -301,7 +337,6 @@ mod app {
             let now = monotonics::now();
             let time = net.get_time(now);
             node.poll(time, |sn, callback: &dyn Fn(&mut dyn usecop::io::Write)| {
-                info!("poll writeback on socket {}", sn);
                 let socket = net.sockets.get_mut::<TcpSocket>(handles[sn]);
                 callback(&mut Writer(socket));
             });

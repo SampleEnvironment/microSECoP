@@ -3,7 +3,7 @@
 ## How to set up the hardware
 
 The setup code is written for the
-(NUCLEO-F429ZI)[https://www.st.com/en/evaluation-tools/nucleo-f429zi.html]
+[NUCLEO-F429ZI](https://www.st.com/en/evaluation-tools/nucleo-f429zi.html)
 board, which has an Ethernet connector onboard.  If you want to use it unchanged
 with a standalone STM32, you need to connect the Ethernet pins, buttons and LEDs
 like described in ST user manual UM1974.
