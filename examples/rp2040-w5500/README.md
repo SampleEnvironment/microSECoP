@@ -34,3 +34,8 @@ $ cargo install probe-rs --features cli
 ```
 $ cargo run --release
 ```
+
+* Connect:
+
+The firmware acquires an IPv4 address via DHCP.  It then also queries the NTP
+server given via DHCP option to get an absolute timestamp for SECoP qualifiers.

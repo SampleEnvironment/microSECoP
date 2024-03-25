@@ -89,9 +89,9 @@ mod app {
         let mdio = gpioa.pa2.into_alternate();
         let mdc = gpioc.pc1.into_alternate();
 
-        // DHCP if user button pressed
+        // DHCP if user button not pressed
         let dhcp_btn = gpioc.pc13.into_pull_down_input();
-        let use_dhcp = dhcp_btn.is_high();
+        let use_dhcp = dhcp_btn.is_low();
 
         let led_green = gpiob.pb0.into_push_pull_output();
         let led_blue = gpiob.pb7.into_push_pull_output();
@@ -122,7 +122,7 @@ mod app {
         // select the default Mesytec IP if static configuration
         if !use_dhcp {
             iface.update_ip_addrs(|addrs| {
-                addrs.push(IpCidr::new(IpAddress::v4(192, 168, 168, 121), 24)).unwrap();
+                addrs.push(IpCidr::new(IpAddress::v4(192, 168, 0, 2), 24)).unwrap();
             });
         }
 
