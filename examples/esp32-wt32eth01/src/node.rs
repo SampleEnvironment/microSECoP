@@ -1,54 +1,59 @@
+use esp_idf_svc::wifi::EspWifi;
 use usecop::{ModuleInternals, Result};
 
 pub type SecNode<const N: usize> = usecop::node::SecNode<MyModules, N>;
 
-pub fn create<const N: usize>() -> SecNode<N> {
+pub fn create<const N: usize>(mut wifi: EspWifi<'static>) -> SecNode<N> {
+    wifi.start_scan(&Default::default(), false).unwrap();
     SecNode::new("esp32", "microSECoP demo over ESP32 and LAN82xx", MyModules {
-        temp: Temp { conversion: 0.001721,
-                     internals: ModuleInternals::new("chip temperature", 5.0) },
+        temp: WifiNets { wifi, max_wifis: 5,
+                         internals: ModuleInternals::new("accessible wifi networks", 5.0) },
     })
 }
 
 #[derive(usecop_derive::Modules)]
 pub struct MyModules {
-    temp: Temp,
+    temp: WifiNets,
 }
 
 #[derive(Clone, Copy, usecop_derive::DataInfo)]
-enum TempStatus {
+enum WifiStatus {
     Idle = 100,
 }
 
 #[derive(usecop_derive::Module)]
 #[secop(interface = "Readable")]
-#[secop(param(name = "value", doc = "main value of the temperature",
+#[secop(param(name = "value", doc = "list of wifi networks",
               readonly = true,
-              datainfo(double(unit="degC"))))]
-#[secop(param(name = "status", doc = "status of readout",
+              datainfo(array(members(str(maxchars=30)), minlen=1, maxlen=10))))]
+#[secop(param(name = "status", doc = "status of scan",
               readonly = true,
-              datainfo(tuple(member(rust="TempStatus"),
+              datainfo(tuple(member(rust="WifiStatus"),
                              member(str(maxchars=18))))))]
-#[secop(param(name = "conversion", doc = "conversion factor",
+#[secop(param(name = "max_wifis", doc = "maximum number of wifi networks to return",
               readonly = false, generate_accessors = true,
-              datainfo(double())))]
+              datainfo(int(min=1, max=10))))]
 #[secop(command(name = "buzz", doc = "buzz it!",
                 argument(str(maxchars=10)),
                 result(str(maxchars=10))))]
-struct Temp {
+struct WifiNets {
     internals: ModuleInternals,
-    conversion: f64,
+    wifi: EspWifi<'static>,
+    max_wifis: i64,
 }
 
-impl Temp {
-    fn read_value(&mut self) -> Result<f64> {
-        let refv = 3.3;
-        let adc_value: u16 = 0;
-        let vbe = f64::from(adc_value) * refv / 4096.0;
-        Ok(27.0 - (vbe - 0.706) / self.conversion)
+impl WifiNets {
+    fn read_value(&mut self) -> Result<Vec<heapless::String<32>>> {
+        if let Ok(ap_infos) = self.wifi.get_scan_result() {
+            self.wifi.start_scan(&Default::default(), false).unwrap();
+            Ok(ap_infos.iter().map(|ap| ap.ssid.clone()).collect())
+        } else {
+            Ok(vec![])
+        }
     }
 
-    fn read_status(&mut self) -> Result<(TempStatus, &str)> {
-        Ok((TempStatus::Idle, "all good, trust me"))
+    fn read_status(&mut self) -> Result<(WifiStatus, &str)> {
+        Ok((WifiStatus::Idle, "all good, trust me"))
     }
 
     fn do_buzz<'a>(&mut self, arg: &'a mut str) -> Result<&'a str> {

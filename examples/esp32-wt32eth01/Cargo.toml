@@ -14,6 +14,7 @@ esp-idf-svc = "0.48"
 anyhow = {version = "1", features = ["backtrace"]}
 log = "0.4"
 core2 = "0.4"
+heapless = "0.8"
 # async
 #async-io = "2"
 #async-executor = "1"
@@ -22,6 +23,7 @@ core2 = "0.4"
 [dependencies.usecop]
 # git = "https://github.com/SampleEnvironment/microSECoP"
 path = "../.."
+features = ["std", "heapless"]
 
 [dependencies.usecop-derive]
 # git = "https://github.com/SampleEnvironment/microSECoP"

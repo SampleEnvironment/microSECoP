@@ -13,6 +13,7 @@ use esp_idf_svc::eth;
 use esp_idf_svc::hal::{delay, gpio, prelude::*};
 use esp_idf_svc::sntp::EspSntp;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
+use esp_idf_svc::wifi::{self, EspWifi};
 
 const MAX_CLIENTS: usize = 5;
 
@@ -63,8 +64,13 @@ fn main() -> Result<()> {
     // this will asynchronously query the time from the NTP server
     let _ntp = EspSntp::new(&Default::default());
 
+    // init wifi for the node's demo module
+    let mut wifi = EspWifi::new(peripherals.modem, sysloop.clone(), None)?;
+    wifi.set_configuration(&wifi::Configuration::Client(Default::default()))?;
+    wifi.start()?;
+
     const REPEAT: Option<TcpStream> = None;
-    let globals = Arc::new(Mutex::new((node::create(), [REPEAT; MAX_CLIENTS])));
+    let globals = Arc::new(Mutex::new((node::create(wifi), [REPEAT; MAX_CLIENTS])));
     type Globals = Arc<Mutex<(node::SecNode<MAX_CLIENTS>,
                               [Option<TcpStream>; MAX_CLIENTS])>>;
 
