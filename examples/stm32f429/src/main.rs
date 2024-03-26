@@ -9,6 +9,7 @@ use panic_probe as _;
 
 use stm32f4xx_hal::{
     self as hal,
+    adc::{Adc, config::AdcConfig},
     prelude::*,
     gpio::{ErasedPin, GpioExt, Output},
     rcc::RccExt,
@@ -126,6 +127,10 @@ mod app {
             });
         }
 
+        let mut adc = Adc::adc1(p.ADC1, true, AdcConfig::default());
+        adc.calibrate();
+        adc.enable_temperature_and_vref();
+
         // set up buffers for packet content and metadata
 
         // create the UDP socket
@@ -137,7 +142,7 @@ mod app {
             handles[i] = sockets.add(tcp_socket);
         }
 
-        let node = node::create();
+        let node = node::create(adc);
 
         // use systick monotonic clock for now
         let mono = Systick::new(cx.core.SYST, clocks.hclk().raw());
@@ -286,33 +291,32 @@ mod app {
             net.poll(now);
             let time = net.get_time(now);
 
-            for (i, &handle) in handles.iter().enumerate() {
+            for (id, &handle) in handles.iter().enumerate() {
                 let socket = net.sockets.get_mut::<TcpSocket>(handle);
 
                 if socket.is_active() {
-                    if !connected[i] {
-                        connected[i] = true;
-                        node.client_connected(i);
+                    if !connected[id] {
+                        connected[id] = true;
+                        node.client_connected(id);
                         leds.set(false, true, true);
                     }
-                } else if connected[i] {
-                    connected[i] = false;
-                    node.client_finished(i);
+                } else if connected[id] {
+                    connected[id] = false;
+                    node.client_finished(id);
                     leds.set(false, true, false);
 
                     if !socket.is_listening() && !socket.is_open() || socket.state() == TcpState::CloseWait {
                         socket.abort();
                         socket.listen(PORT).ok();
-                        warn!("Disconnected... Reopening listening socket.");
+                        warn!("Disconnected socket {}... Listening again", id);
                     }
                 }
 
                 if let Ok(recv_bytes) = socket.recv_slice(&mut buf) {
                     if recv_bytes > 0 {
-                        info!("Got {} bytes on socket {}", recv_bytes, i);
+                        info!("Got {} bytes on socket {}", recv_bytes, id);
                         let result = node.process(
-                            time, &mut buf[..recv_bytes],
-                            i as usecop::ClientId,
+                            time, &mut buf[..recv_bytes], id,
                             |sn, callback: &dyn Fn(&mut dyn usecop::io::Write)| {
                                 let socket = net.sockets.get_mut::<TcpSocket>(handles[sn]);
                                 callback(&mut Writer(socket));

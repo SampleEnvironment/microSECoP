@@ -3,7 +3,7 @@ use usecop::{ModuleInternals, Result};
 pub type SecNode<const N: usize> = usecop::node::SecNode<MyModules, N>;
 
 pub fn create<const N: usize>() -> SecNode<N> {
-    SecNode::new("rpi", "microSECoP demo over ESP32 and LAN82xx", MyModules {
+    SecNode::new("esp32", "microSECoP demo over ESP32 and LAN82xx", MyModules {
         temp: Temp { conversion: 0.001721,
                      internals: ModuleInternals::new("chip temperature", 5.0) },
     })

@@ -1,14 +1,14 @@
-// use stm32f4xx_hal::{
-//     hal_02::adc::Channel,
-//     adc::{Adc, config::{AdcConfig, SampleTime, Sequence, Eoc, Scan, Clock}},
-// };
+use stm32f4xx_hal::{
+    adc::{Adc, Temperature, config::SampleTime},
+    pac::ADC1,
+};
 use usecop::{ModuleInternals, Result};
 
 pub type SecNode<const N: usize> = usecop::node::SecNode<MyModules, N>;
 
-pub fn create<const N: usize>() -> SecNode<N> {
-    SecNode::new("rpi", "microSECoP demo on STM32F4", MyModules {
-        temp: Temp { conversion: 0.001721,
+pub fn create<const N: usize>(adc: Adc<ADC1>) -> SecNode<N> {
+    SecNode::new("stm32", "microSECoP demo on STM32F4", MyModules {
+        temp: Temp { adc, conversion: 2.5,
                      internals: ModuleInternals::new("chip temperature", 5.0) },
     })
 }
@@ -40,15 +40,17 @@ enum TempStatus {
                 result(str(maxchars=10))))]
 struct Temp {
     internals: ModuleInternals,
+    adc: Adc<ADC1>,
     conversion: f64,
 }
 
 impl Temp {
     fn read_value(&mut self) -> Result<f64> {
-        let refv = 3.3;
-        let adc_value: u16 = 0;
-        let vbe = f64::from(adc_value) * refv / 4096.0;
-        Ok(27.0 - (vbe - 0.706) / self.conversion)
+        let sample = self.adc.convert(&Temperature, SampleTime::Cycles_480);
+        defmt::info!("sample: {}", sample);
+        let v_sense = self.adc.sample_to_millivolts(sample);
+        defmt::info!("voltage: {}", v_sense);
+        Ok(25.0 + (v_sense - 760) as f64 / self.conversion)
     }
 
     fn read_status(&mut self) -> Result<(TempStatus, &str)> {
