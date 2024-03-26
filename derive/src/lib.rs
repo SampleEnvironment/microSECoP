@@ -280,7 +280,7 @@ pub fn derive_module(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 match self.#read_method() {
                     // TODO: check return val?
                     Ok(value) => reply.send(
-                        usecop::proto::OutMsg::Update { spec, value, time }),
+                        usecop::proto::OutMsg::Reply { spec, value, time }),
                     Err(e) => reply.send(e.spec_msg(usecop::wire::READ, spec)),
                 }
             }

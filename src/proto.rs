@@ -224,6 +224,8 @@ pub enum OutMsg<'a, T> {
     Active { module: &'a str },
     /// event disable reply
     Inactive { module: &'a str },
+    /// Read result
+    Reply { spec: Specifier<'a>, value: T, time: Timestamp },
     /// command result
     Done { spec: Specifier<'a>, value: T, time: Timestamp },
     /// change result
@@ -307,6 +309,8 @@ impl<T: ToJson> Display for OutMsg<'_, T> {
                 writeln!(f, "{} {} [{},{}]", wire::CHANGED, spec, Json(value), time),
             OutMsg::Done { spec, value, time } =>
                 writeln!(f, "{} {} [{},{}]", wire::DONE, spec, Json(value), time),
+            OutMsg::Reply { spec, value, time } =>
+                writeln!(f, "{} {} [{},{}]", wire::REPLY, spec, Json(value), time),
             OutMsg::Describing { id, structure } =>
                 writeln!(f, "{} {} {}", wire::DESCRIBING, id, structure),
             OutMsg::Active { module } =>

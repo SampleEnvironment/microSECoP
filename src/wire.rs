@@ -39,6 +39,7 @@ pub const DONE: &str = "done";
 pub const CHANGE: &str = "change";
 pub const CHANGED: &str = "changed";
 pub const READ: &str = "read";
+pub const REPLY: &str = "reply";
 pub const UPDATE: &str = "update";
 pub const HELP: &str = "help";
 pub const HELPING: &str = "helping";
