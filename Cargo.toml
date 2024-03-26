@@ -13,3 +13,8 @@ base64 = { version = "0.21.5", default-features = false }
 core2 = { version = "0.4.0", default-features = false }
 dtoa = "1.0.9"
 sha1 = { version = "0.10.6", default-features = false }
+heapless = { version = "0.8", optional = true }
+
+[features]
+std = ["core2/std"]
+heapless = ["dep:heapless"]

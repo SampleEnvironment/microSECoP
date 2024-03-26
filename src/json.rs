@@ -132,20 +132,51 @@ impl FromJson<'_> for i64 {
     }
 }
 
+fn check_str<'s, 'a>(s: &'s str, datainfo: &DataInfo<'a>) -> Result<'a, ()> {
+    if let DataInfo::Str { minchars, maxchars, is_utf8 } = datainfo {
+        if let Some(min) = minchars {
+            if s.len() < *min { return Err(Error::bad_value("value too short")); }
+        }
+        if s.len() > *maxchars { return Err(Error::bad_value("value too long")); }
+        if !is_utf8 && s.chars().any(|c| !c.is_ascii()) {
+            return Err(Error::bad_value("value contains non-ASCII characters"));
+        }
+    }
+    Ok(())
+}
+
 impl<'s> FromJson<'s> for &'s mut str {
     fn from_json<'a>(json: &'s mut str, datainfo: &DataInfo<'a>) -> Result<'a, Self> {
         match deserialize_json_string(json) {
             Some(s) => {
-                if let DataInfo::Str { minchars, maxchars, is_utf8 } = datainfo {
-                    if let Some(min) = minchars {
-                        if s.len() < *min { return Err(Error::bad_value("value too short")); }
-                    }
-                    if s.len() > *maxchars { return Err(Error::bad_value("value too long")); }
-                    if !is_utf8 && s.chars().any(|c| !c.is_ascii()) {
-                        return Err(Error::bad_value("value contains non-ASCII characters"));
-                    }
-                }
+                check_str(s, datainfo)?;
                 Ok(s)
+            }
+            None => Err(Error::bad_value("expected string")),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'s> FromJson<'s> for String {
+    fn from_json<'a>(json: &'s mut str, datainfo: &DataInfo<'a>) -> Result<'a, Self> {
+        match deserialize_json_string(json) {
+            Some(s) => {
+                check_str(s, datainfo)?;
+                Ok(s.to_string())
+            }
+            None => Err(Error::bad_value("expected string")),
+        }
+    }
+}
+
+#[cfg(feature = "heapless")]
+impl<'s, const N: usize> FromJson<'s> for heapless::String<N> {
+    fn from_json<'a>(json: &'s mut str, datainfo: &DataInfo<'a>) -> Result<'a, Self> {
+        match deserialize_json_string(json) {
+            Some(s) => {
+                check_str(s, datainfo)?;
+                core::str::FromStr::from_str(s).map_err(|_| Error::bad_value("value too long"))
             }
             None => Err(Error::bad_value("expected string")),
         }
@@ -268,6 +299,26 @@ impl<'a> ToJson for &'a mut str {
     }
 }
 
+#[cfg(feature = "std")]
+impl ToJson for String {
+    fn to_json(&self, f: &mut Formatter) -> core::fmt::Result {
+        self.as_str().to_json(f)
+    }
+    fn check<'b>(&self, datainfo: &DataInfo<'b>) -> Result<'b, ()> {
+        self.as_str().check(datainfo)
+    }
+}
+
+#[cfg(feature = "heapless")]
+impl<const N: usize> ToJson for heapless::String<N> {
+    fn to_json(&self, f: &mut Formatter) -> core::fmt::Result {
+        self.as_str().to_json(f)
+    }
+    fn check<'b>(&self, datainfo: &DataInfo<'b>) -> Result<'b, ()> {
+        self.as_str().check(datainfo)
+    }
+}
+
 impl<'a, T: ToJson> ToJson for &'a [T] {
     fn to_json(&self, f: &mut Formatter) -> core::fmt::Result {
         f.write_char('[')?;
@@ -288,6 +339,26 @@ impl<'a, T: ToJson> ToJson for &'a [T] {
         } else {
             Err(Error::bad_value("expected Array datainfo"))
         }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<T: ToJson> ToJson for Vec<T> {
+    fn to_json(&self, f: &mut Formatter) -> core::fmt::Result {
+        self.as_slice().to_json(f)
+    }
+    fn check<'b>(&self, datainfo: &DataInfo<'b>) -> Result<'b, ()> {
+        self.as_slice().check(datainfo)
+    }
+}
+
+#[cfg(feature = "heapless")]
+impl<T: ToJson, const N: usize> ToJson for heapless::Vec<T, N> {
+    fn to_json(&self, f: &mut Formatter) -> core::fmt::Result {
+        self.as_slice().to_json(f)
+    }
+    fn check<'b>(&self, datainfo: &DataInfo<'b>) -> Result<'b, ()> {
+        self.as_slice().check(datainfo)
     }
 }
 

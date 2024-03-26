@@ -141,7 +141,7 @@ impl ToTokens for DataInfo {
                 })
             }
             DataInfo::Array { minlen, maxlen, members } => quote!(usecop::DataInfo::Array {
-                minlen: #minlen, maxlen: #maxlen, members: Box::new(#members)
+                minlen: #minlen, maxlen: #maxlen, members: &#members
             }),
             DataInfo::Tuple { member } => {
                 let mut members = vec![];
