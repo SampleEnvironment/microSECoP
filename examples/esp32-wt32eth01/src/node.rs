@@ -46,7 +46,10 @@ impl WifiNets {
     fn read_value(&mut self) -> Result<Vec<heapless::String<32>>> {
         if let Ok(ap_infos) = self.wifi.get_scan_result() {
             self.wifi.start_scan(&Default::default(), false).unwrap();
-            Ok(ap_infos.iter().map(|ap| ap.ssid.clone()).collect())
+            let mut result: Vec<_> = ap_infos.iter().map(|ap| ap.ssid.clone()).collect();
+            result.sort();
+            result.truncate(self.max_wifis as usize);
+            Ok(result)
         } else {
             Ok(vec![])
         }
